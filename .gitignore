@@ -2,6 +2,9 @@
 
 # dependencies
 /node_modules
+/src/generated
+/public/uploads/covers/*
+!/public/uploads/covers/.gitkeep
 /.pnp
 .pnp.*
 .yarn/*

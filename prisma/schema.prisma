@@ -1,0 +1,263 @@
+// ============================================
+// Novel Data Web - Prisma Schema
+// ============================================
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum Role {
+  admin
+  mod
+
+  @@map("role")
+}
+
+enum NovelStatus {
+  ongoing
+  completed
+  dropped
+
+  @@map("novel_status_enum")
+}
+
+enum TranslationStatus {
+  translating
+  paused
+  completed
+  dropped
+
+  @@map("translation_status_enum")
+}
+
+enum InvitationStatus {
+  active
+  used
+  expired
+
+  @@map("invitation_status_enum")
+}
+
+enum AuditAction {
+  create
+  update
+  delete
+
+  @@map("audit_action_enum")
+}
+
+enum SubmissionStatus {
+  pending
+  approved
+  rejected
+
+  @@map("submission_status_enum")
+}
+
+// ============================================
+// USERS (replaces Supabase auth.users)
+// ============================================
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  profile Profile?
+
+  @@map("users")
+}
+
+// ============================================
+// PROFILES
+// ============================================
+
+model Profile {
+  id          String   @id @db.Uuid
+  email       String?
+  displayName String?  @map("display_name")
+  role        Role     @default(mod)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  novelsCreated    Novel[]      @relation("NovelCreatedBy")
+  novelsUpdated    Novel[]      @relation("NovelUpdatedBy")
+  invitationsCreated Invitation[] @relation("InvitationCreatedBy")
+  invitationsUsed    Invitation[] @relation("InvitationUsedBy")
+  auditLogs        AuditLog[]
+  submissionsReviewed Submission[] @relation("SubmissionReviewedBy")
+
+  @@map("profiles")
+}
+
+// ============================================
+// GENRES
+// ============================================
+
+model Genre {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique
+  nameMm    String?  @map("name_mm")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  novelGenres NovelGenre[]
+
+  @@map("genres")
+}
+
+// ============================================
+// NOVELS
+// ============================================
+
+model Novel {
+  id                String             @id @default(uuid()) @db.Uuid
+  titleEn           String             @map("title_en")
+  titleMm           String?            @map("title_mm")
+  authorPenName     String?            @map("author_pen_name")
+  synopsis          String?
+  coverImageUrl     String?            @map("cover_image_url")
+  fbPageUrl         String?            @map("fb_page_url")
+  tgUsername        String?            @map("tg_username")
+  tgGroupUrl        String?            @map("tg_group_url")
+  tgChannelUrl      String?            @map("tg_channel_url")
+  novelStatus       NovelStatus        @default(ongoing) @map("novel_status")
+  chaptersCount     Int?               @map("chapters_count")
+  sourceUrl         String?            @map("source_url")
+  translationStatus TranslationStatus? @map("translation_status") @default(translating)
+  translationNote   String?            @map("translation_note")
+  translatedChapters Int?              @map("translated_chapters")
+  lastTranslatedAt  DateTime?          @map("last_translated_at") @db.Timestamptz
+  extraInfo         Json               @default("{}") @map("extra_info")
+  createdBy         String?            @map("created_by") @db.Uuid
+  updatedBy         String?            @map("updated_by") @db.Uuid
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  createdByProfile Profile? @relation("NovelCreatedBy", fields: [createdBy], references: [id])
+  updatedByProfile Profile? @relation("NovelUpdatedBy", fields: [updatedBy], references: [id])
+  novelGenres      NovelGenre[]
+  readingLinks     ReadingLink[]
+
+  @@index([createdAt(sort: Desc)])
+
+  @@map("novels")
+}
+
+// ============================================
+// NOVEL_GENRES (many-to-many)
+// ============================================
+
+model NovelGenre {
+  novelId String @map("novel_id") @db.Uuid
+  genreId String @map("genre_id") @db.Uuid
+
+  novel Novel @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  genre Genre @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@id([novelId, genreId])
+  @@map("novel_genres")
+}
+
+// ============================================
+// READING LINKS
+// ============================================
+
+model ReadingLink {
+  id           String   @id @default(uuid()) @db.Uuid
+  novelId      String   @map("novel_id") @db.Uuid
+  platformName String   @map("platform_name")
+  url          String
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  novel Novel @relation(fields: [novelId], references: [id], onDelete: Cascade)
+
+  @@index([novelId])
+  @@map("reading_links")
+}
+
+// ============================================
+// INVITATIONS
+// ============================================
+
+model Invitation {
+  id        String           @id @default(uuid()) @db.Uuid
+  token     String           @unique
+  createdBy String?          @map("created_by") @db.Uuid
+  usedBy    String?          @map("used_by") @db.Uuid
+  role      Role             @default(mod)
+  expiresAt DateTime?        @map("expires_at") @db.Timestamptz
+  usedAt    DateTime?        @map("used_at") @db.Timestamptz
+  status    InvitationStatus @default(active)
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz
+
+  createdByProfile Profile? @relation("InvitationCreatedBy", fields: [createdBy], references: [id])
+  usedByProfile    Profile? @relation("InvitationUsedBy", fields: [usedBy], references: [id])
+
+  @@map("invitations")
+}
+
+// ============================================
+// AUDIT LOGS
+// ============================================
+
+model AuditLog {
+  id         String      @id @default(uuid()) @db.Uuid
+  userId     String?     @map("user_id") @db.Uuid
+  action     AuditAction
+  entityType String      @map("entity_type")
+  entityId   String?     @map("entity_id") @db.Uuid
+  details    Json        @default("{}") @db.JsonB
+  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz
+
+  userProfile Profile? @relation(fields: [userId], references: [id])
+
+  @@index([createdAt(sort: Desc)])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
+
+// ============================================
+// SUBMISSIONS
+// ============================================
+
+model Submission {
+  id               String           @id @default(uuid()) @db.Uuid
+  titleEn          String           @map("title_en")
+  titleMm          String?          @map("title_mm")
+  authorPenName    String?          @map("author_pen_name")
+  synopsis         String?
+  coverImageUrl    String?          @map("cover_image_url")
+  fbPageUrl        String?          @map("fb_page_url")
+  tgUsername       String?          @map("tg_username")
+  tgGroupUrl       String?          @map("tg_group_url")
+  tgChannelUrl     String?          @map("tg_channel_url")
+  novelStatus      NovelStatus      @default(ongoing) @map("novel_status")
+  chaptersCount    Int?             @map("chapters_count")
+  sourceUrl        String?          @map("source_url")
+  sourceLinks      Json             @default("[]") @map("source_links") @db.JsonB
+  genreIds         Json             @default("[]") @map("genre_ids") @db.JsonB
+  submitterName    String           @map("submitter_name")
+  submitterContact String?          @map("submitter_contact")
+  status           SubmissionStatus @default(pending)
+  reviewedBy       String?          @map("reviewed_by") @db.Uuid
+  reviewedAt       DateTime?        @map("reviewed_at") @db.Timestamptz
+  reviewNote       String?          @map("review_note")
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz
+
+  reviewedByProfile Profile? @relation("SubmissionReviewedBy", fields: [reviewedBy], references: [id])
+
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@map("submissions")
+}
