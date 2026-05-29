@@ -49,13 +49,20 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Redirect logged-in users away from login page
-  // Skip redirect if user explicitly navigated here to sign out
+  // Login page with ?signout → clear session cookie and show login
   if (
     request.nextUrl.pathname === "/login" &&
-    userId &&
-    !request.nextUrl.searchParams.has("signout")
+    request.nextUrl.searchParams.has("signout")
   ) {
+    const url = request.nextUrl.clone();
+    url.searchParams.delete("signout");
+    const res = NextResponse.redirect(url);
+    res.cookies.delete(SESSION_COOKIE);
+    return res;
+  }
+
+  // Redirect logged-in users away from login page
+  if (request.nextUrl.pathname === "/login" && userId) {
     const url = request.nextUrl.clone();
     url.pathname = "/admin";
     return NextResponse.redirect(url);

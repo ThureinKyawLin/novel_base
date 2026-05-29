@@ -4,7 +4,7 @@ import { AdminHeader } from "@/components/admin/header";
 import Link from "next/link";
 import { ShieldAlert } from "lucide-react";
 import { SignOutButton } from "@/components/admin/sign-out-button";
-import { getCurrentUser, ensureProfile, clearSessionCookie } from "@/lib/auth";
+import { getCurrentUser, ensureProfile } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export default async function AdminLayout({
@@ -15,16 +15,13 @@ export default async function AdminLayout({
   const user = await getCurrentUser();
 
   if (!user) {
-    // Clear invalid session to prevent redirect loop
-    await clearSessionCookie();
-    redirect("/login");
+    redirect("/login?signout");
   }
 
   // Ensure profile exists (handles first admin bootstrap)
   const ensured = await ensureProfile(user.id);
   if (!ensured) {
-    await clearSessionCookie();
-    redirect("/login");
+    redirect("/login?signout");
   }
 
   // Map camelCase from ensureProfile() to snake_case expected by components
