@@ -12,7 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { UserPlus, Loader2, AlertCircle } from "lucide-react";
+import { UserPlus, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { validateInviteToken, inviteSignup } from "../actions";
 
 export default function InvitePage({
@@ -28,6 +28,7 @@ export default function InvitePage({
   const [loading, setLoading] = useState(false);
   const [validating, setValidating] = useState(true);
   const [valid, setValid] = useState(false);
+  const [success, setSuccess] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -58,14 +59,40 @@ export default function InvitePage({
       return;
     }
 
-    router.push("/login");
-    router.refresh();
+    setSuccess(true);
+    setLoading(false);
+    setTimeout(() => {
+      router.push("/login");
+    }, 3000);
   }
 
   if (validating) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background px-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
+              <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400" />
+            </div>
+            <CardTitle className="text-2xl">Account Created!</CardTitle>
+            <CardDescription>
+              Your account has been created successfully. Redirecting to sign in...
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-center">
+            <Button onClick={() => router.push("/login")} className="w-full">
+              Sign In Now
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
