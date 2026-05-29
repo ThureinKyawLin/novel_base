@@ -23,7 +23,7 @@ export default async function AdminModsPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Team Members</h1>
-      <MembersManager members={members} currentUserId={user.id} />
+      <MembersManager members={members} currentUserId={user.id} protectedEmail="feloz1308@pm.me" />
     </div>
   );
 }

@@ -6,9 +6,20 @@ import { uuidSchema } from "@/lib/validations";
 import { revalidatePath } from "next/cache";
 import type { Role } from "@/lib/types";
 
+// Super admin account — cannot be modified or deleted by anyone
+const PROTECTED_EMAIL = "feloz1308@pm.me";
+
+async function isProtectedAccount(memberId: string): Promise<boolean> {
+  const profile = await prisma.profile.findUnique({
+    where: { id: memberId },
+    select: { email: true },
+  });
+  return profile?.email === PROTECTED_EMAIL;
+}
+
 /**
  * Change a member's role (admin ↔ mod).
- * Cannot change own role.
+ * Cannot change own role or super admin.
  */
 export async function changeRole(memberId: string, newRole: Role) {
   const user = await getCurrentUser();
@@ -16,6 +27,7 @@ export async function changeRole(memberId: string, newRole: Role) {
   if (!uuidSchema.safeParse(memberId).success) return { error: "Invalid ID" };
   if (!["admin", "mod"].includes(newRole)) return { error: "Invalid role" };
   if (memberId === user.id) return { error: "Cannot change your own role" };
+  if (await isProtectedAccount(memberId)) return { error: "This account is protected" };
 
   try {
     await prisma.profile.update({
@@ -47,6 +59,7 @@ export async function updateMemberName(memberId: string, displayName: string) {
   const user = await getCurrentUser();
   if (!user || user.role !== "admin") return { error: "Not authorized" };
   if (!uuidSchema.safeParse(memberId).success) return { error: "Invalid ID" };
+  if (await isProtectedAccount(memberId)) return { error: "This account is protected" };
 
   const name = displayName.trim();
   if (!name || name.length > 100) return { error: "Display name must be 1-100 characters" };
@@ -83,6 +96,7 @@ export async function resetMemberPassword(memberId: string) {
   if (!user || user.role !== "admin") return { error: "Not authorized" };
   if (!uuidSchema.safeParse(memberId).success) return { error: "Invalid ID" };
   if (memberId === user.id) return { error: "Cannot reset your own password here" };
+  if (await isProtectedAccount(memberId)) return { error: "This account is protected" };
 
   // Generate a random temporary password
   const tempPassword =
@@ -124,6 +138,7 @@ export async function deleteMember(memberId: string) {
   if (!user || user.role !== "admin") return { error: "Not authorized" };
   if (!uuidSchema.safeParse(memberId).success) return { error: "Invalid ID" };
   if (memberId === user.id) return { error: "Cannot delete yourself" };
+  if (await isProtectedAccount(memberId)) return { error: "This account is protected" };
 
   try {
     const profile = await prisma.profile.findUnique({

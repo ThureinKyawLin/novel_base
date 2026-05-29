@@ -43,9 +43,10 @@ import type { Profile, Role } from "@/lib/types";
 interface Props {
   members: Profile[];
   currentUserId: string;
+  protectedEmail?: string;
 }
 
-export function MembersManager({ members: initialMembers, currentUserId }: Props) {
+export function MembersManager({ members: initialMembers, currentUserId, protectedEmail }: Props) {
   const [members, setMembers] = useState(initialMembers);
   const [loading, setLoading] = useState<string | null>(null);
   const router = useRouter();
@@ -62,6 +63,7 @@ export function MembersManager({ members: initialMembers, currentUserId }: Props
   const [copied, setCopied] = useState(false);
 
   const isSelf = (id: string) => id === currentUserId;
+  const isProtected = (member: Profile) => !!protectedEmail && member.email === protectedEmail;
 
   async function handleRoleChange(member: Profile) {
     const newRole: Role = member.role === "admin" ? "mod" : "admin";
@@ -194,64 +196,68 @@ export function MembersManager({ members: initialMembers, currentUserId }: Props
                     {new Date(member.created_at).toLocaleDateString()}
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      {/* Edit name */}
-                      <Button
-                        variant="outline"
-                        size="icon-sm"
-                        title="Edit name"
-                        onClick={() => openEditName(member)}
-                        disabled={loading === member.id}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-
-                      {/* Toggle role */}
-                      {!isSelf(member.id) && (
+                    {isProtected(member) ? (
+                      <Badge variant="outline" className="text-xs">Protected</Badge>
+                    ) : (
+                      <div className="flex justify-end gap-1">
+                        {/* Edit name */}
                         <Button
                           variant="outline"
                           size="icon-sm"
-                          title={member.role === "admin" ? "Demote to Mod" : "Promote to Admin"}
-                          onClick={() => handleRoleChange(member)}
+                          title="Edit name"
+                          onClick={() => openEditName(member)}
                           disabled={loading === member.id}
                         >
-                          {loading === member.id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : member.role === "admin" ? (
-                            <ShieldMinus className="h-3.5 w-3.5" />
-                          ) : (
-                            <ShieldCheck className="h-3.5 w-3.5" />
-                          )}
+                          <Pencil className="h-3.5 w-3.5" />
                         </Button>
-                      )}
 
-                      {/* Reset password */}
-                      {!isSelf(member.id) && (
-                        <Button
-                          variant="outline"
-                          size="icon-sm"
-                          title="Reset password"
-                          onClick={() => handleResetPassword(member)}
-                          disabled={loading === member.id}
-                        >
-                          <KeyRound className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
+                        {/* Toggle role */}
+                        {!isSelf(member.id) && (
+                          <Button
+                            variant="outline"
+                            size="icon-sm"
+                            title={member.role === "admin" ? "Demote to Mod" : "Promote to Admin"}
+                            onClick={() => handleRoleChange(member)}
+                            disabled={loading === member.id}
+                          >
+                            {loading === member.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : member.role === "admin" ? (
+                              <ShieldMinus className="h-3.5 w-3.5" />
+                            ) : (
+                              <ShieldCheck className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
+                        )}
 
-                      {/* Delete */}
-                      {!isSelf(member.id) && (
-                        <Button
-                          variant="outline"
-                          size="icon-sm"
-                          title="Delete member"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => handleDelete(member)}
-                          disabled={loading === member.id}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
-                    </div>
+                        {/* Reset password */}
+                        {!isSelf(member.id) && (
+                          <Button
+                            variant="outline"
+                            size="icon-sm"
+                            title="Reset password"
+                            onClick={() => handleResetPassword(member)}
+                            disabled={loading === member.id}
+                          >
+                            <KeyRound className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+
+                        {/* Delete */}
+                        {!isSelf(member.id) && (
+                          <Button
+                            variant="outline"
+                            size="icon-sm"
+                            title="Delete member"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => handleDelete(member)}
+                            disabled={loading === member.id}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    )}
                   </TableCell>
                 </TableRow>
               ))
