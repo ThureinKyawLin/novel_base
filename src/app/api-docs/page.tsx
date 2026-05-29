@@ -147,7 +147,7 @@ export default function ApiDocsPage() {
           </CardHeader>
           <CardContent>
             <code className="rounded bg-muted px-3 py-2 text-sm font-mono block">
-              https://your-domain.com/api/v1
+              {process.env.NEXT_PUBLIC_SITE_URL || "https://novelbase.labmyanmar.com"}/api/v1
             </code>
           </CardContent>
         </Card>
@@ -238,26 +238,26 @@ export default function ApiDocsPage() {
               <h4 className="text-sm font-semibold mb-2">cURL</h4>
               <pre className="rounded-md bg-zinc-950 text-zinc-50 p-4 text-xs overflow-x-auto">
                 <code>{`# List novels
-curl "https://your-domain.com/api/v1/novels?page=1&per_page=10"
+curl "https://novelbase.labmyanmar.com/api/v1/novels?page=1&per_page=10"
 
 # Search novels
-curl "https://your-domain.com/api/v1/novels?q=against+the+gods"
+curl "https://novelbase.labmyanmar.com/api/v1/novels?q=against+the+gods"
 
 # Get single novel
-curl "https://your-domain.com/api/v1/novels/NOVEL_UUID"
+curl "https://novelbase.labmyanmar.com/api/v1/novels/NOVEL_UUID"
 
 # List genres
-curl "https://your-domain.com/api/v1/genres"
+curl "https://novelbase.labmyanmar.com/api/v1/genres"
 
 # Get stats
-curl "https://your-domain.com/api/v1/stats"`}</code>
+curl "https://novelbase.labmyanmar.com/api/v1/stats"`}</code>
               </pre>
             </div>
             <div>
               <h4 className="text-sm font-semibold mb-2">JavaScript (fetch)</h4>
               <pre className="rounded-md bg-zinc-950 text-zinc-50 p-4 text-xs overflow-x-auto">
                 <code>{`const response = await fetch(
-  "https://your-domain.com/api/v1/novels?q=fantasy&status=ongoing"
+  "https://novelbase.labmyanmar.com/api/v1/novels?q=fantasy&status=ongoing"
 );
 const { data, total, page, total_pages } = await response.json();
 
