@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -20,13 +19,12 @@ import type { Profile } from "@/lib/types";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { MobileSidebar } from "@/components/admin/sidebar";
 
-export function AdminHeader({ profile }: { profile: Profile }) {
+export function AdminHeader({ profile, pendingSubmissions = 0 }: { profile: Profile; pendingSubmissions?: number }) {
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   async function handleLogout() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
+    await fetch("/auth/signout", { method: "POST" });
     router.push("/login");
     router.refresh();
   }
@@ -88,6 +86,7 @@ export function AdminHeader({ profile }: { profile: Profile }) {
       role={profile.role}
       open={mobileOpen}
       onOpenChange={setMobileOpen}
+      pendingSubmissions={pendingSubmissions}
     />
     </>
   );

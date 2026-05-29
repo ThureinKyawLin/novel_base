@@ -1,7 +1,16 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { prisma } from "@/lib/prisma";
+import { hashPassword } from "@/lib/auth";
 import { inviteSignupSchema } from "@/lib/validations";
+import { headers } from "next/headers";
+import { rateLimitAsync } from "@/lib/rate-limit";
+
+/** Get client IP for rate limiting */
+async function getIp() {
+  const h = await headers();
+  return h.get("cf-connecting-ip") ?? h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+}
 
 /**
  * Validate an invitation token server-side.
@@ -12,27 +21,28 @@ export async function validateInviteToken(token: string) {
     return { valid: false, role: null };
   }
 
-  const supabase = await createClient();
+  // Rate limit: prevent token brute-force (20 attempts per 15 min per IP)
+  const ip = await getIp();
+  const limiter = await rateLimitAsync(`invite-validate:${ip}`, { maxRequests: 20, windowMs: 900_000 });
+  if (!limiter.success) {
+    return { valid: false, role: null };
+  }
 
-  // Use service-level query — RLS is bypassed because this runs server-side
-  // and the anon key can read active invitations (we'll tighten RLS separately)
-  const { data, error } = await supabase
-    .from("invitations")
-    .select("role, expires_at, status")
-    .eq("token", token)
-    .eq("status", "active")
-    .single();
+  const invitation = await prisma.invitation.findFirst({
+    where: { token, status: "active" },
+    select: { role: true, expiresAt: true },
+  });
 
-  if (error || !data) {
+  if (!invitation) {
     return { valid: false, role: null };
   }
 
   // Check expiry
-  if (data.expires_at && new Date(data.expires_at) < new Date()) {
+  if (invitation.expiresAt && invitation.expiresAt < new Date()) {
     return { valid: false, role: null };
   }
 
-  return { valid: true, role: data.role as string };
+  return { valid: true, role: invitation.role as string };
 }
 
 /**
@@ -54,57 +64,70 @@ export async function inviteSignup(formData: {
 
   const { token, email, password, display_name } = parsed.data;
 
-  const supabase = await createClient();
+  // Rate limit: 5 signups per 15 min per IP
+  const ip = await getIp();
+  const limiter = await rateLimitAsync(`invite-signup:${ip}`, { maxRequests: 5, windowMs: 900_000 });
+  if (!limiter.success) {
+    return { error: "Too many attempts. Please try again later." };
+  }
 
   // 1. Validate token server-side and get role from DB
-  const { data: invitation, error: invError } = await supabase
-    .from("invitations")
-    .select("id, role, expires_at, status")
-    .eq("token", token)
-    .eq("status", "active")
-    .single();
+  const invitation = await prisma.invitation.findFirst({
+    where: { token, status: "active" },
+    select: { id: true, role: true, expiresAt: true },
+  });
 
-  if (invError || !invitation) {
+  if (!invitation) {
     return { error: "Invalid or expired invitation link" };
   }
 
-  if (invitation.expires_at && new Date(invitation.expires_at) < new Date()) {
+  if (invitation.expiresAt && invitation.expiresAt < new Date()) {
     return { error: "This invitation has expired" };
   }
 
-  // 2. Sign up user — role comes from the invitation row, NOT client input
-  const { data: authData, error: signUpError } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: {
-        display_name,
-        role: invitation.role, // Role from DB, not from client
-      },
-    },
-  });
-
-  if (signUpError) {
-    return { error: signUpError.message };
+  // Check if email already exists
+  const existingUser = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
+  if (existingUser) {
+    return { error: "An account with this email already exists" };
   }
 
-  // 3. Mark invitation as used (atomic with signup)
-  if (authData.user) {
-    const { error: updateError } = await supabase
-      .from("invitations")
-      .update({
-        status: "used",
-        used_by: authData.user.id,
-        used_at: new Date().toISOString(),
-      })
-      .eq("token", token)
-      .eq("status", "active"); // Extra safety: only update if still active
+  try {
+    // 2. Create user + profile in a transaction
+    const passwordHash = await hashPassword(password);
 
-    if (updateError) {
-      // Log but don't fail — user is already created
-      console.error("Failed to mark invitation as used:", updateError);
-    }
+    const user = await prisma.$transaction(async (tx) => {
+      const newUser = await tx.user.create({
+        data: {
+          email: email.toLowerCase().trim(),
+          passwordHash,
+        },
+      });
+
+      await tx.profile.create({
+        data: {
+          id: newUser.id,
+          email: newUser.email,
+          displayName: display_name,
+          role: invitation.role, // Role from DB, not from client
+        },
+      });
+
+      // 3. Mark invitation as used
+      await tx.invitation.update({
+        where: { id: invitation.id, status: "active" },
+        data: {
+          status: "used",
+          usedBy: newUser.id,
+          usedAt: new Date(),
+        },
+      });
+
+      return newUser;
+    });
+
+    return { success: true };
+  } catch (e) {
+    console.error("Invite signup error:", e);
+    return { error: "Failed to create account. Please try again." };
   }
-
-  return { success: true };
 }

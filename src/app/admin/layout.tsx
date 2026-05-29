@@ -1,39 +1,37 @@
-import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { AdminSidebar } from "@/components/admin/sidebar";
 import { AdminHeader } from "@/components/admin/header";
 import Link from "next/link";
 import { ShieldAlert } from "lucide-react";
 import { SignOutButton } from "@/components/admin/sign-out-button";
+import { getCurrentUser, ensureProfile } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
 export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) {
     redirect("/login");
   }
 
-  // Use RPC to ensure profile exists (bypasses RLS, handles first admin bootstrap)
-  // .single() is required because ensure_profile returns SETOF — without it,
-  // the client returns an array and profile.role would be undefined.
-  const { data: rpcProfile } = await supabase
-    .rpc("ensure_profile")
-    .single();
+  // Ensure profile exists (handles first admin bootstrap)
+  const ensured = await ensureProfile(user.id);
+  if (!ensured) {
+    redirect("/login");
+  }
 
-  const profile = rpcProfile as {
-    id: string;
-    email: string | null;
-    display_name: string | null;
-    role: "admin" | "mod";
-    created_at: string;
-  } | null;
+  // Map camelCase from ensureProfile() to snake_case expected by components
+  const profile = {
+    id: ensured.id,
+    email: ensured.email,
+    display_name: ensured.displayName,
+    role: ensured.role as "admin" | "mod",
+    created_at: ensured.createdAt,
+  };
 
   if (!profile || !['admin', 'mod'].includes(profile.role)) {
     return (
@@ -58,11 +56,14 @@ export default async function AdminLayout({
     );
   }
 
+  // Get pending submission count for sidebar badge
+  const pendingCount = await prisma.submission.count({ where: { status: "pending" } });
+
   return (
     <div className="flex h-screen bg-background">
-      <AdminSidebar role={profile.role} />
+      <AdminSidebar role={profile.role} pendingSubmissions={pendingCount} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <AdminHeader profile={profile} />
+        <AdminHeader profile={profile} pendingSubmissions={pendingCount} />
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </div>
     </div>

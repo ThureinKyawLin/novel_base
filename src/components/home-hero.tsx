@@ -18,8 +18,8 @@ export function HomeHero({ totalNovels }: { totalNovels: number }) {
     <section className="border-b bg-gradient-to-b from-primary/5 to-background">
       <div className="container mx-auto px-4 py-12 sm:py-20 text-center">
         <h1
-          className={`text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight ${
-            locale === "mm" ? "font-[var(--font-mm)]" : ""
+          className={`text-3xl sm:text-4xl md:text-5xl font-bold leading-snug sm:leading-snug md:leading-snug ${
+            locale === "mm" ? "font-[var(--font-mm)]" : "tracking-tight"
           }`}
         >
           {t.hero.title}

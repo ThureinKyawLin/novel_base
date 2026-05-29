@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { clearSessionCookie } from "@/lib/auth";
 
-export async function POST(request: Request) {
+export async function POST() {
   await clearSessionCookie();
 
-  const { origin } = new URL(request.url);
-  return NextResponse.redirect(`${origin}/login`, { status: 302 });
+  // Return JSON instead of redirect — client-side fetch handles the navigation
+  return NextResponse.json({ success: true });
 }

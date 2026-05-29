@@ -1,5 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -11,14 +12,20 @@ import {
 } from "@/components/ui/table";
 
 export default async function AdminModsPage() {
-  const supabase = await createClient();
-  const { data: profile } = await supabase.rpc("ensure_profile").single();
-  if (!profile || (profile as { role: string }).role !== "admin") redirect("/admin");
+  const user = await getCurrentUser();
+  if (!user || user.role !== "admin") redirect("/admin");
 
-  const { data: members } = await supabase
-    .from("profiles")
-    .select("*")
-    .order("created_at", { ascending: false });
+  const membersRaw = await prisma.profile.findMany({
+    orderBy: { createdAt: "desc" },
+  });
+
+  const members = membersRaw.map((m) => ({
+    id: m.id,
+    display_name: m.displayName,
+    email: m.email,
+    role: m.role,
+    created_at: m.createdAt.toISOString(),
+  }));
 
   return (
     <div className="space-y-6">

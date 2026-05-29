@@ -15,9 +15,9 @@ const safeUrlSchema = z
   .max(2048, "URL too long")
   .refine(
     (val) => {
-      if (!val) return true;
+      if (!val || !val.trim()) return true;
       try {
-        const url = new URL(val);
+        const url = new URL(val.trim());
         return url.protocol === "https:" || url.protocol === "http:";
       } catch {
         return false;
@@ -56,6 +56,7 @@ export const novelFormSchema = z.object({
     .max(500, "Title too long"),
   title_mm: z.string().max(500, "Title too long").optional(),
   author_pen_name: z.string().max(200, "Author name too long").optional(),
+  translator_name: z.string().max(200, "Translator name too long").optional(),
   synopsis: z.string().max(10000, "Synopsis too long").optional(),
   cover_image_url: optionalSafeUrl,
   fb_page_url: optionalSafeUrl,
@@ -144,6 +145,7 @@ export const submissionFormSchema = z.object({
     .max(500, "Title too long"),
   title_mm: z.string().max(500, "Title too long").optional(),
   author_pen_name: z.string().max(200, "Author name too long").optional(),
+  translator_name: z.string().max(200, "Translator name too long").optional(),
   synopsis: z.string().max(10000, "Synopsis too long").optional(),
   cover_image_url: optionalSafeUrl,
   fb_page_url: optionalSafeUrl,

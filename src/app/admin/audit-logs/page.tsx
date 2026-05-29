@@ -1,5 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -11,15 +12,28 @@ import {
 } from "@/components/ui/table";
 
 export default async function AdminAuditLogsPage() {
-  const supabase = await createClient();
-  const { data: profile } = await supabase.rpc("ensure_profile").single();
-  if (!profile || (profile as { role: string }).role !== "admin") redirect("/admin");
+  const user = await getCurrentUser();
+  if (!user || user.role !== "admin") redirect("/admin");
 
-  const { data: logs } = await supabase
-    .from("audit_logs")
-    .select("*, user_profile:profiles!audit_logs_user_id_fkey(display_name, email)")
-    .order("created_at", { ascending: false })
-    .limit(100);
+  const logsRaw = await prisma.auditLog.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 100,
+    include: {
+      userProfile: { select: { displayName: true, email: true } },
+    },
+  });
+
+  const logs = logsRaw.map((log) => ({
+    id: log.id,
+    action: log.action,
+    entity_type: log.entityType,
+    entity_id: log.entityId,
+    details: log.details as Record<string, unknown>,
+    created_at: log.createdAt.toISOString(),
+    user_profile: log.userProfile
+      ? { display_name: log.userProfile.displayName, email: log.userProfile.email }
+      : null,
+  }));
 
   const actionColors: Record<string, string> = {
     create: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",

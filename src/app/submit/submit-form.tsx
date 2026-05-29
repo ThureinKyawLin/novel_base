@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +18,7 @@ import { Loader2, CheckCircle2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "@/components/language-context";
 import { createSubmission } from "./actions";
+import { CoverUpload } from "@/components/cover-upload";
 import type { Genre } from "@/lib/types";
 
 export function SubmitForm({ genres }: { genres: Genre[] }) {
@@ -26,11 +27,14 @@ export function SubmitForm({ genres }: { genres: Genre[] }) {
   const [submitted, setSubmitted] = useState(false);
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [sourceLinks, setSourceLinks] = useState<{ platform_name: string; url: string }[]>([]);
+  const [honeypot, setHoneypot] = useState("");
+  const [formLoadedAt] = useState(() => Date.now());
 
   const [form, setForm] = useState({
     title_en: "",
     title_mm: "",
     author_pen_name: "",
+    translator_name: "",
     synopsis: "",
     cover_image_url: "",
     fb_page_url: "",
@@ -75,6 +79,7 @@ export function SubmitForm({ genres }: { genres: Genre[] }) {
       ...form,
       title_mm: form.title_mm || undefined,
       author_pen_name: form.author_pen_name || undefined,
+      translator_name: form.translator_name || undefined,
       synopsis: form.synopsis || undefined,
       cover_image_url: form.cover_image_url || undefined,
       fb_page_url: form.fb_page_url || undefined,
@@ -86,6 +91,8 @@ export function SubmitForm({ genres }: { genres: Genre[] }) {
       novel_status: form.novel_status as "ongoing" | "completed" | "dropped",
       source_links: validLinks.length > 0 ? validLinks : undefined,
       genre_ids: selectedGenres,
+      _hp: honeypot,
+      _ts: formLoadedAt,
     });
 
     if (result.error) {
@@ -109,7 +116,7 @@ export function SubmitForm({ genres }: { genres: Genre[] }) {
           <p className="text-muted-foreground max-w-sm mx-auto">
             {t.submit.successDescription}
           </p>
-          <Button onClick={() => { setSubmitted(false); setForm({ title_en: "", title_mm: "", author_pen_name: "", synopsis: "", cover_image_url: "", fb_page_url: "", tg_username: "", tg_group_url: "", tg_channel_url: "", novel_status: "ongoing", chapters_count: undefined, submitter_name: "", submitter_contact: "" }); setSelectedGenres([]); setSourceLinks([]); }}>
+          <Button onClick={() => { setSubmitted(false); setForm({ title_en: "", title_mm: "", author_pen_name: "", translator_name: "", synopsis: "", cover_image_url: "", fb_page_url: "", tg_username: "", tg_group_url: "", tg_channel_url: "", novel_status: "ongoing", chapters_count: undefined, submitter_name: "", submitter_contact: "" }); setSelectedGenres([]); setSourceLinks([]); }}>
             {t.submit.submitAnother}
           </Button>
         </CardContent>
@@ -149,13 +156,26 @@ export function SubmitForm({ genres }: { genres: Genre[] }) {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="author_pen_name">{t.submit.authorPenName}</Label>
+              <Label htmlFor="author_pen_name">Original Author / Pen Name</Label>
               <Input
                 id="author_pen_name"
                 value={form.author_pen_name}
                 onChange={(e) => updateField("author_pen_name", e.target.value)}
+                placeholder="မူရင်းစာရေးဆရာ"
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="translator_name">Translator</Label>
+              <Input
+                id="translator_name"
+                value={form.translator_name}
+                onChange={(e) => updateField("translator_name", e.target.value)}
+                placeholder="ဘာသာပြန်သူ"
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="novel_status">{t.submit.status}</Label>
               <Select
@@ -197,16 +217,13 @@ export function SubmitForm({ genres }: { genres: Genre[] }) {
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="cover_image_url">{t.submit.coverImageUrl}</Label>
-            <Input
-              id="cover_image_url"
-              type="url"
-              value={form.cover_image_url}
-              onChange={(e) => updateField("cover_image_url", e.target.value)}
-              placeholder="https://..."
-            />
-          </div>
+          {/* Cover image upload with crop */}
+          <CoverUpload
+            value={form.cover_image_url}
+            onChange={(url) => updateField("cover_image_url", url)}
+            label={t.submit.coverImageUrl}
+            isPublic
+          />
         </CardContent>
       </Card>
 
@@ -370,6 +387,20 @@ export function SubmitForm({ genres }: { genres: Genre[] }) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Honeypot — hidden from real users, bots will fill it */}
+      <div className="absolute opacity-0 h-0 overflow-hidden" aria-hidden="true" tabIndex={-1}>
+        <label htmlFor="_hp_website">Website</label>
+        <input
+          id="_hp_website"
+          name="_hp_website"
+          type="text"
+          value={honeypot}
+          onChange={(e) => setHoneypot(e.target.value)}
+          autoComplete="off"
+          tabIndex={-1}
+        />
+      </div>
 
       <Button type="submit" className="w-full" disabled={loading}>
         {loading ? (

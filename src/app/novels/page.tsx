@@ -1,4 +1,3 @@
-import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Badge } from "@/components/ui/badge";
@@ -10,10 +9,11 @@ import {
   ChevronRight,
   SearchX,
   PlusCircle,
+  ArrowLeft,
 } from "lucide-react";
-import { sanitizePostgrestValue } from "@/lib/validations";
 import { SiteHeader } from "@/components/site-header";
 import { NovelCard } from "@/components/novel-card";
+import { getCachedGenres, getCachedBrowseNovels } from "@/lib/cached-queries";
 
 const PER_PAGE = 24;
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -61,44 +61,32 @@ export default async function NovelsPage({
   const statusFilter = params.status || "";
   const page = Math.max(1, Number(params.page) || 1);
 
-  const supabase = await createClient();
+  // Get genres for filter (cached)
+  const genresRaw = await getCachedGenres();
+  const genres = genresRaw.map((g) => ({ id: g.id, name: g.name, name_mm: g.nameMm }));
 
-  // Get genres for filter
-  const { data: genres } = await supabase.from("genres").select("*").order("name");
+  // Get novels (cached)
+  const browseData = await getCachedBrowseNovels({
+    query,
+    genreFilter,
+    statusFilter,
+    page,
+    perPage: PER_PAGE,
+  });
 
-  // Build query
-  let novelsQuery = supabase
-    .from("novels")
-    .select("*, novel_genres(genre_id, genres(id, name))", { count: "exact" });
+  const novels = browseData.novels.map((n) => ({
+    id: n.id,
+    title_en: n.titleEn,
+    title_mm: n.titleMm,
+    author_pen_name: n.authorPenName,
+    translator_name: n.translatorName,
+    cover_image_url: n.coverImageUrl,
+    novel_status: n.novelStatus,
+    chapters_count: n.chaptersCount,
+    novel_genres: n.novelGenres.map((ng) => ({ genre_id: ng.genreId, genres: { id: ng.genre.id, name: ng.genre.name } })),
+  }));
 
-  if (query) {
-    const sanitized = sanitizePostgrestValue(query.slice(0, 200));
-    if (sanitized) {
-      novelsQuery = novelsQuery.or(
-        `title_en.ilike.%${sanitized}%,title_mm.ilike.%${sanitized}%,author_pen_name.ilike.%${sanitized}%`
-      );
-    }
-  }
-
-  if (statusFilter) {
-    novelsQuery = novelsQuery.eq("novel_status", statusFilter);
-  }
-
-  const { data: allNovels, count: totalCount } = await novelsQuery
-    .order("created_at", { ascending: false })
-    .range((page - 1) * PER_PAGE, page * PER_PAGE - 1);
-
-  // Filter by genre client-side (Supabase doesn't support filtering on nested relations easily)
-  let novels = allNovels ?? [];
-  if (genreFilter) {
-    novels = novels.filter((n) =>
-      (n.novel_genres as { genre_id: string }[])?.some(
-        (ng) => ng.genre_id === genreFilter
-      )
-    );
-  }
-
-  const total = totalCount ?? 0;
+  const total = browseData.totalCount;
   const totalPages = Math.ceil(total / PER_PAGE);
   const activeGenre = genres?.find((g) => g.id === genreFilter);
 
@@ -119,6 +107,14 @@ export default async function NovelsPage({
       <SiteHeader active="browse" />
 
       <div className="container mx-auto px-4 py-6 sm:py-8 flex-1">
+        {/* Back button (mobile) */}
+        <div className="mb-4 sm:hidden">
+          <Button variant="ghost" size="sm" render={<Link href="/" />}>
+            <ArrowLeft className="mr-1.5 h-4 w-4" />
+            Home
+          </Button>
+        </div>
+
         {/* Search bar */}
         <form className="flex max-w-lg gap-2 mb-6">
           <div className="relative flex-1">
@@ -126,7 +122,7 @@ export default async function NovelsPage({
             <Input
               name="q"
               defaultValue={query}
-              placeholder="Search by title or author..."
+              placeholder="Search by title, author or translator..."
               className="pl-10"
             />
           </div>
@@ -199,6 +195,7 @@ export default async function NovelsPage({
                   title_en: novel.title_en,
                   title_mm: novel.title_mm,
                   author_pen_name: novel.author_pen_name,
+                  translator_name: novel.translator_name,
                   cover_image_url: novel.cover_image_url,
                   novel_status: novel.novel_status,
                   chapters_count: novel.chapters_count,
@@ -233,25 +230,52 @@ export default async function NovelsPage({
         )}
 
         {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 mt-8">
-            {page > 1 && (
-              <Button variant="outline" size="sm" render={<Link href={buildUrl({ page: String(page - 1) })} />}>
-                <ChevronLeft className="h-4 w-4 mr-1" />
-                Previous
-              </Button>
-            )}
-            <span className="text-sm text-muted-foreground px-4">
-              Page {page} of {totalPages}
-            </span>
-            {page < totalPages && (
-              <Button variant="outline" size="sm" render={<Link href={buildUrl({ page: String(page + 1) })} />}>
-                Next
-                <ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
-            )}
-          </div>
-        )}
+        {totalPages > 1 && (() => {
+          // Build page number list with ellipsis for large ranges
+          const pages: (number | "...")[] = [];
+          if (totalPages <= 7) {
+            for (let i = 1; i <= totalPages; i++) pages.push(i);
+          } else {
+            pages.push(1);
+            if (page > 3) pages.push("...");
+            for (let i = Math.max(2, page - 1); i <= Math.min(totalPages - 1, page + 1); i++) pages.push(i);
+            if (page < totalPages - 2) pages.push("...");
+            pages.push(totalPages);
+          }
+
+          return (
+            <div className="flex items-center justify-center gap-1.5 mt-8">
+              {page > 1 && (
+                <Button variant="outline" size="sm" render={<Link href={buildUrl({ page: String(page - 1) })} />}>
+                  <ChevronLeft className="h-4 w-4" />
+                  <span className="hidden sm:inline ml-1">Previous</span>
+                </Button>
+              )}
+              {pages.map((p, i) =>
+                p === "..." ? (
+                  <span key={`ellipsis-${i}`} className="px-2 text-sm text-muted-foreground">…</span>
+                ) : (
+                  <Button
+                    key={p}
+                    variant={p === page ? "default" : "outline"}
+                    size="sm"
+                    className="min-w-9 px-2"
+                    render={p === page ? undefined : <Link href={buildUrl({ page: String(p) })} />}
+                    disabled={p === page}
+                  >
+                    {p}
+                  </Button>
+                )
+              )}
+              {page < totalPages && (
+                <Button variant="outline" size="sm" render={<Link href={buildUrl({ page: String(page + 1) })} />}>
+                  <span className="hidden sm:inline mr-1">Next</span>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

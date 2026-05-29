@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -102,30 +101,24 @@ export function ImageUpload({
         `${formatBytes(originalSize)} → ${formatBytes(compressed.size)} (${savedPercent}% saved)`
       );
 
-      // Upload compressed WebP
-      const supabase = createClient();
-      const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
-      const filePath = `covers/${fileName}`;
+      // Upload compressed WebP via API route
+      const formData = new FormData();
+      formData.append("file", compressed, "cover.webp");
 
-      const { error } = await supabase.storage
-        .from("covers")
-        .upload(filePath, compressed, {
-          contentType: "image/webp",
-          cacheControl: "31536000",
-          upsert: false,
-        });
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
 
-      if (error) {
-        toast.error(error.message);
+      const result = await res.json();
+
+      if (!res.ok) {
+        toast.error(result.error || "Upload failed");
         setUploading(false);
         return;
       }
 
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("covers").getPublicUrl(filePath);
-
-      onChange(publicUrl);
+      onChange(result.url);
       toast.success(`Uploaded as WebP (${savedPercent}% smaller)`);
     } catch {
       toast.error("Upload failed. Please try again.");

@@ -1,19 +1,21 @@
-import { createClient } from "@/lib/supabase/server";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { SubmitForm } from "./submit-form";
+import { getCachedGenres } from "@/lib/cached-queries";
 
 export const metadata = {
   title: "Submit a Novel | NovelBase",
-  description: "Submit a novel to the Myanmar Novelbasefor review.",
+  description: "Submit a novel to the Myanmar Novelbase for review.",
 };
 
 export default async function SubmitPage() {
-  const supabase = await createClient();
-  const { data: genres } = await supabase
-    .from("genres")
-    .select("*")
-    .order("name");
+  const genresRaw = await getCachedGenres();
+  const genres = genresRaw.map((g) => ({
+    id: g.id,
+    name: g.name,
+    name_mm: g.nameMm,
+    created_at: "", // not used by SubmitForm
+  }));
 
   return (
     <div className="min-h-screen bg-background flex flex-col">

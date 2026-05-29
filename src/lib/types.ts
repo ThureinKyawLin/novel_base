@@ -32,6 +32,7 @@ export interface Novel {
   title_en: string;
   title_mm: string | null;
   author_pen_name: string | null;
+  translator_name: string | null;
   synopsis: string | null;
   cover_image_url: string | null;
   fb_page_url: string | null;
@@ -96,6 +97,7 @@ export interface Submission {
   title_en: string;
   title_mm: string | null;
   author_pen_name: string | null;
+  translator_name: string | null;
   synopsis: string | null;
   cover_image_url: string | null;
   fb_page_url: string | null;
@@ -137,6 +139,7 @@ export interface NovelFormData {
   title_en: string;
   title_mm?: string;
   author_pen_name?: string;
+  translator_name?: string;
   synopsis?: string;
   cover_image_url?: string;
   fb_page_url?: string;

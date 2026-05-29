@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { generateInvitation } from "@/app/admin/invitations/actions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -52,30 +52,16 @@ export function InvitationsManager({
 
   async function generateInvite() {
     setLoading(true);
-    const supabase = createClient();
 
-    const token = crypto.randomUUID().replace(/-/g, "");
-    const expiresAt = expiryHours
-      ? new Date(Date.now() + Number(expiryHours) * 3600000).toISOString()
-      : null;
+    const result = await generateInvitation(expiryHours || null);
 
-    const { data, error } = await supabase
-      .from("invitations")
-      .insert({
-        token,
-        role: "mod",
-        expires_at: expiresAt,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      toast.error(error.message);
+    if (result.error) {
+      toast.error(result.error);
       setLoading(false);
       return;
     }
 
-    const link = `${window.location.origin}/invite/${token}`;
+    const link = `${window.location.origin}/invite/${result.data!.token}`;
     setGeneratedLink(link);
     setLoading(false);
   }

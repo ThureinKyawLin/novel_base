@@ -1,135 +1,150 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { uuidSchema } from "@/lib/validations";
+import { invalidateNovelCaches } from "@/lib/redis";
 
 export async function approveSubmission(id: string) {
   if (!uuidSchema.safeParse(id).success) return { error: "Invalid ID" };
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated" };
 
   // Get submission
-  const { data: sub, error: fetchErr } = await supabase
-    .from("submissions")
-    .select("*")
-    .eq("id", id)
-    .eq("status", "pending")
-    .single();
-
-  if (fetchErr || !sub) return { error: "Submission not found or already reviewed" };
-
-  // Create novel from submission
-  const { data: novel, error: novelErr } = await supabase
-    .from("novels")
-    .insert({
-      title_en: sub.title_en,
-      title_mm: sub.title_mm,
-      author_pen_name: sub.author_pen_name,
-      synopsis: sub.synopsis,
-      cover_image_url: sub.cover_image_url,
-      fb_page_url: sub.fb_page_url,
-      tg_username: sub.tg_username,
-      tg_group_url: sub.tg_group_url,
-      tg_channel_url: sub.tg_channel_url,
-      novel_status: sub.novel_status || "ongoing",
-      chapters_count: sub.chapters_count,
-      source_url: sub.source_url,
-      created_by: user.id,
-      updated_by: user.id,
-    })
-    .select()
-    .single();
-
-  if (novelErr || !novel) return { error: "Failed to create novel" };
-
-  // Insert genre associations
-  const genreIds = (sub.genre_ids as string[]) ?? [];
-  if (genreIds.length > 0) {
-    await supabase.from("novel_genres").insert(
-      genreIds.map((gid: string) => ({ novel_id: novel.id, genre_id: gid }))
-    );
-  }
-
-  // Create reading_links from source_links + legacy source_url
-  const sourceLinks = (sub.source_links as { platform_name: string; url: string }[] | null) ?? [];
-  const allLinks = [...sourceLinks];
-  // Include legacy source_url as a reading link if not already in source_links
-  if (sub.source_url && !allLinks.some((l) => l.url === sub.source_url)) {
-    // Auto-detect platform name from URL
-    const hostname = (() => { try { return new URL(sub.source_url).hostname; } catch { return ""; } })();
-    const platformName = hostname.replace(/^www\./, "").split(".")[0] || "Source";
-    allLinks.push({ platform_name: platformName.charAt(0).toUpperCase() + platformName.slice(1), url: sub.source_url });
-  }
-  if (allLinks.length > 0) {
-    await supabase.from("reading_links").insert(
-      allLinks.map((link) => ({
-        novel_id: novel.id,
-        platform_name: link.platform_name,
-        url: link.url,
-      }))
-    );
-  }
-
-  // Mark submission as approved
-  await supabase
-    .from("submissions")
-    .update({
-      status: "approved",
-      reviewed_by: user.id,
-      reviewed_at: new Date().toISOString(),
-    })
-    .eq("id", id);
-
-  // Audit log
-  await supabase.from("audit_logs").insert({
-    user_id: user.id,
-    action: "create",
-    entity_type: "novel",
-    entity_id: novel.id,
-    details: { title_en: novel.title_en, source: "submission", submission_id: id },
+  const sub = await prisma.submission.findFirst({
+    where: { id, status: "pending" },
   });
 
-  revalidatePath("/admin/submissions");
-  revalidatePath("/admin/novels");
-  revalidatePath("/");
-  return { success: true };
+  if (!sub) return { error: "Submission not found or already reviewed" };
+
+  try {
+    // Create novel from submission
+    const novel = await prisma.novel.create({
+      data: {
+        titleEn: sub.titleEn,
+        titleMm: sub.titleMm,
+        authorPenName: sub.authorPenName,
+        translatorName: sub.translatorName,
+        synopsis: sub.synopsis,
+        coverImageUrl: sub.coverImageUrl,
+        fbPageUrl: sub.fbPageUrl,
+        tgUsername: sub.tgUsername,
+        tgGroupUrl: sub.tgGroupUrl,
+        tgChannelUrl: sub.tgChannelUrl,
+        novelStatus: sub.novelStatus || "ongoing",
+        chaptersCount: sub.chaptersCount,
+        sourceUrl: sub.sourceUrl,
+        createdBy: user.id,
+        updatedBy: user.id,
+      },
+    });
+
+    // Insert genre associations (validate genre IDs exist first)
+    const rawGenreIds = (sub.genreIds as string[]) ?? [];
+    let genreIds: string[] = [];
+    if (rawGenreIds.length > 0) {
+      const existingGenres = await prisma.genre.findMany({
+        where: { id: { in: rawGenreIds } },
+        select: { id: true },
+      });
+      genreIds = existingGenres.map((g) => g.id);
+    }
+    if (genreIds.length > 0) {
+      await prisma.novelGenre.createMany({
+        data: genreIds.map((gid: string) => ({ novelId: novel.id, genreId: gid })),
+      });
+    }
+
+    // Create reading_links from source_links + legacy source_url
+    const sourceLinks = (sub.sourceLinks as { platform_name: string; url: string }[] | null) ?? [];
+    const allLinks = [...sourceLinks];
+    if (sub.sourceUrl && !allLinks.some((l) => l.url === sub.sourceUrl)) {
+      const hostname = (() => { try { return new URL(sub.sourceUrl!).hostname; } catch { return ""; } })();
+      const platformName = hostname.replace(/^www\./, "").split(".")[0] || "Source";
+      allLinks.push({ platform_name: platformName.charAt(0).toUpperCase() + platformName.slice(1), url: sub.sourceUrl! });
+    }
+    if (allLinks.length > 0) {
+      await prisma.readingLink.createMany({
+        data: allLinks.map((link) => ({
+          novelId: novel.id,
+          platformName: link.platform_name,
+          url: link.url,
+        })),
+      });
+    }
+
+    // Mark submission as approved
+    await prisma.submission.update({
+      where: { id },
+      data: {
+        status: "approved",
+        reviewedBy: user.id,
+        reviewedAt: new Date(),
+      },
+    });
+
+    // Audit log
+    await prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        action: "create",
+        entityType: "novel",
+        entityId: novel.id,
+        details: { title_en: novel.titleEn, source: "submission", submission_id: id },
+      },
+    });
+
+    await invalidateNovelCaches();
+    revalidatePath("/admin/submissions");
+    revalidatePath("/admin/novels");
+    revalidatePath("/");
+    return { success: true };
+  } catch (e) {
+    console.error("Approve submission error:", e);
+    return { error: "Failed to approve submission" };
+  }
 }
 
 export async function checkDuplicates(titleEn: string, titleMm?: string | null) {
-  const supabase = await createClient();
+  const user = await getCurrentUser();
+  if (!user) return { duplicates: [] };
 
-  // Search by similar English title (case-insensitive)
   const searchTerm = titleEn.trim();
   if (!searchTerm) return { duplicates: [] };
 
-  // Use ILIKE for fuzzy matching — search for titles that contain the search term
-  // or where the search term contains the title
-  const { data: byEnTitle } = await supabase
-    .from("novels")
-    .select("id, title_en, title_mm, author_pen_name, novel_status")
-    .ilike("title_en", `%${searchTerm}%`)
-    .limit(10);
+  const byEnTitle = await prisma.novel.findMany({
+    where: { titleEn: { contains: searchTerm, mode: "insensitive" } },
+    select: { id: true, titleEn: true, titleMm: true, authorPenName: true, translatorName: true, novelStatus: true },
+    take: 10,
+  });
 
   let byMmTitle: typeof byEnTitle = [];
   if (titleMm?.trim()) {
-    const { data } = await supabase
-      .from("novels")
-      .select("id, title_en, title_mm, author_pen_name, novel_status")
-      .ilike("title_mm", `%${titleMm.trim()}%`)
-      .limit(10);
-    byMmTitle = data ?? [];
+    byMmTitle = await prisma.novel.findMany({
+      where: { titleMm: { contains: titleMm.trim(), mode: "insensitive" } },
+      select: { id: true, titleEn: true, titleMm: true, authorPenName: true, translatorName: true, novelStatus: true },
+      take: 10,
+    });
   }
 
-  // Deduplicate by id
+  // Deduplicate by id and map to snake_case
   const seen = new Set<string>();
-  const duplicates = [...(byEnTitle ?? []), ...byMmTitle].filter((n) => {
-    if (seen.has(n.id)) return false;
-    seen.add(n.id);
-    return true;
-  });
+  const duplicates = [...byEnTitle, ...byMmTitle]
+    .filter((n) => {
+      if (seen.has(n.id)) return false;
+      seen.add(n.id);
+      return true;
+    })
+    .map((n) => ({
+      id: n.id,
+      title_en: n.titleEn,
+      title_mm: n.titleMm,
+      author_pen_name: n.authorPenName,
+      translator_name: n.translatorName,
+      novel_status: n.novelStatus,
+    }));
 
   return { duplicates };
 }
@@ -137,23 +152,23 @@ export async function checkDuplicates(titleEn: string, titleMm?: string | null) 
 export async function rejectSubmission(id: string, note?: string) {
   if (!uuidSchema.safeParse(id).success) return { error: "Invalid ID" };
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated" };
 
-  const { error } = await supabase
-    .from("submissions")
-    .update({
-      status: "rejected",
-      reviewed_by: user.id,
-      reviewed_at: new Date().toISOString(),
-      review_note: note?.slice(0, 500) || null,
-    })
-    .eq("id", id)
-    .eq("status", "pending");
+  try {
+    await prisma.submission.update({
+      where: { id, status: "pending" },
+      data: {
+        status: "rejected",
+        reviewedBy: user.id,
+        reviewedAt: new Date(),
+        reviewNote: note?.slice(0, 500) || null,
+      },
+    });
 
-  if (error) return { error: "Failed to reject submission" };
-
-  revalidatePath("/admin/submissions");
-  return { success: true };
+    revalidatePath("/admin/submissions");
+    return { success: true };
+  } catch {
+    return { error: "Failed to reject submission" };
+  }
 }

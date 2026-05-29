@@ -5,6 +5,7 @@ interface NovelCardProps {
   title_en: string;
   title_mm?: string | null;
   author_pen_name?: string | null;
+  translator_name?: string | null;
   cover_image_url?: string | null;
   novel_status: string;
   chapters_count?: number | null;
@@ -62,13 +63,15 @@ export function NovelCard({ novel }: { novel: NovelCardProps }) {
             {novel.title_en}
           </h3>
           {novel.title_mm && (
-            <p className="text-[11px] text-white/70 line-clamp-1 mt-0.5">
+            <p className="text-[11px] text-white/70 line-clamp-1 mt-1">
               {novel.title_mm}
             </p>
           )}
-          {novel.author_pen_name && (
-            <p className="text-[11px] text-white/60 mt-1">
+          {(novel.author_pen_name || novel.translator_name) && (
+            <p className="text-[11px] text-white/60 mt-1.5 line-clamp-1">
               {novel.author_pen_name}
+              {novel.author_pen_name && novel.translator_name && " / "}
+              {novel.translator_name && `TL: ${novel.translator_name}`}
             </p>
           )}
           {novel.genres.length > 0 && (

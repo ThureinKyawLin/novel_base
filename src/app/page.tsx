@@ -1,4 +1,3 @@
-import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,25 +7,29 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { HomeHero } from "@/components/home-hero";
 import { NovelCard } from "@/components/novel-card";
+import { getCachedHomeData, getCachedGenres } from "@/lib/cached-queries";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
 export default async function HomePage() {
-  const supabase = await createClient();
-
-  const [novelsResult, genresResult, countResult] = await Promise.all([
-    supabase
-      .from("novels")
-      .select("*, novel_genres(genre_id, genres(id, name))")
-      .order("created_at", { ascending: false })
-      .limit(12),
-    supabase.from("genres").select("*").order("name"),
-    supabase.from("novels").select("*", { count: "exact", head: true }),
+  const [homeData, genresRaw] = await Promise.all([
+    getCachedHomeData(),
+    getCachedGenres(),
   ]);
 
-  const novels = novelsResult.data ?? [];
-  const genres = genresResult.data ?? [];
-  const totalNovels = countResult.count ?? 0;
+  const { totalNovels } = homeData;
+  const novels = homeData.novels.map((n) => ({
+    ...n,
+    title_en: n.titleEn,
+    title_mm: n.titleMm,
+    author_pen_name: n.authorPenName,
+    translator_name: n.translatorName,
+    cover_image_url: n.coverImageUrl,
+    novel_status: n.novelStatus,
+    chapters_count: n.chaptersCount,
+    novel_genres: n.novelGenres.map((ng) => ({ genre_id: ng.genreId, genres: { id: ng.genre.id, name: ng.genre.name } })),
+  }));
+  const genres = genresRaw.map((g) => ({ id: g.id, name: g.name, name_mm: g.nameMm }));
   const hasNovels = novels.length > 0;
 
   // WebSite structured data for Google sitelinks search box
@@ -55,7 +58,7 @@ export default async function HomePage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
       />
 
-      <SiteHeader active="home" showAdmin />
+      <SiteHeader active="home" />
       <HomeHero totalNovels={totalNovels} />
 
       {/* Genre filters */}
@@ -107,6 +110,7 @@ export default async function HomePage() {
                       title_en: novel.title_en,
                       title_mm: novel.title_mm,
                       author_pen_name: novel.author_pen_name,
+                      translator_name: novel.translator_name,
                       cover_image_url: novel.cover_image_url,
                       novel_status: novel.novel_status,
                       chapters_count: novel.chapters_count,

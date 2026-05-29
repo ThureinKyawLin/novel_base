@@ -1,15 +1,15 @@
-import { createClient } from "@/lib/supabase/server";
+import { prisma } from "@/lib/prisma";
 import type { MetadataRoute } from "next";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const supabase = await createClient();
+  const novelsRaw = await prisma.novel.findMany({
+    orderBy: { updatedAt: "desc" },
+    select: { id: true, updatedAt: true },
+  });
 
-  const { data: novels } = await supabase
-    .from("novels")
-    .select("id, updated_at")
-    .order("updated_at", { ascending: false });
+  const novels = novelsRaw.map((n) => ({ id: n.id, updated_at: n.updatedAt.toISOString() }));
 
   const novelUrls: MetadataRoute.Sitemap = (novels ?? []).map((novel) => ({
     url: `${SITE_URL}/novels/${novel.id}`,

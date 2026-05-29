@@ -35,7 +35,7 @@ const allLinks = [
   { href: "/admin/audit-logs", label: "Audit Logs", icon: ScrollText, roles: ["admin"] },
 ];
 
-export function AdminSidebar({ role }: { role: string }) {
+export function AdminSidebar({ role, pendingSubmissions = 0 }: { role: string; pendingSubmissions?: number }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const links = allLinks.filter((link) => link.roles.includes(role));
@@ -47,29 +47,23 @@ export function AdminSidebar({ role }: { role: string }) {
         collapsed ? "w-16" : "w-64"
       )}
     >
-      <div className="flex h-14 items-center border-b px-3 justify-between">
-        {!collapsed ? (
-          <Link href="/admin">
-            <Logo size={24} />
-          </Link>
-        ) : (
-          <Link href="/admin">
-            <Logo size={24} showText={false} />
-          </Link>
-        )}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={() => setCollapsed(!collapsed)}
-          className={cn(collapsed && "mx-auto")}
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {collapsed ? (
-            <PanelLeftOpen className="h-4 w-4" />
-          ) : (
+      <div className={cn(
+        "flex h-14 items-center border-b",
+        collapsed ? "justify-center px-2" : "px-3 justify-between"
+      )}>
+        <Link href="/admin">
+          <Logo size={collapsed ? 28 : 24} showText={!collapsed} />
+        </Link>
+        {!collapsed && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setCollapsed(true)}
+            aria-label="Collapse sidebar"
+          >
             <PanelLeftClose className="h-4 w-4" />
-          )}
-        </Button>
+          </Button>
+        )}
       </div>
       <nav className={cn("flex-1 space-y-1", collapsed ? "p-2" : "p-4")}>
         {links.map((link) => {
@@ -83,7 +77,7 @@ export function AdminSidebar({ role }: { role: string }) {
               href={link.href}
               title={collapsed ? link.label : undefined}
               className={cn(
-                "flex items-center rounded-md text-sm font-medium transition-colors",
+                "flex items-center rounded-md text-sm font-medium transition-colors relative",
                 collapsed
                   ? "justify-center p-2"
                   : "gap-3 px-3 py-2",
@@ -94,11 +88,28 @@ export function AdminSidebar({ role }: { role: string }) {
             >
               <link.icon className="h-4 w-4 shrink-0" />
               {!collapsed && link.label}
+              {link.href === "/admin/submissions" && pendingSubmissions > 0 && (
+                <span className={cn(
+                  "inline-flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold",
+                  collapsed ? "absolute -top-1 -right-1 h-4 w-4" : "ml-auto h-5 min-w-5 px-1"
+                )}>
+                  {pendingSubmissions}
+                </span>
+              )}
             </Link>
           );
         })}
       </nav>
-      <div className={cn("border-t", collapsed ? "p-2" : "p-4")}>
+      <div className={cn("border-t", collapsed ? "p-2 space-y-1" : "p-4")}>
+        {collapsed && (
+          <button
+            onClick={() => setCollapsed(false)}
+            className="flex items-center justify-center rounded-md p-2 w-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            aria-label="Expand sidebar"
+          >
+            <PanelLeftOpen className="h-4 w-4" />
+          </button>
+        )}
         <Link
           href="/"
           title={collapsed ? "View Public Site" : undefined}
@@ -120,10 +131,12 @@ export function MobileSidebar({
   role,
   open,
   onOpenChange,
+  pendingSubmissions = 0,
 }: {
   role: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  pendingSubmissions?: number;
 }) {
   const pathname = usePathname();
   const links = allLinks.filter((link) => link.roles.includes(role));
@@ -155,6 +168,11 @@ export function MobileSidebar({
               >
                 <link.icon className="h-4 w-4 shrink-0" />
                 {link.label}
+                {link.href === "/admin/submissions" && pendingSubmissions > 0 && (
+                  <span className="ml-auto inline-flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold h-5 min-w-5 px-1">
+                    {pendingSubmissions}
+                  </span>
+                )}
               </Link>
             );
           })}

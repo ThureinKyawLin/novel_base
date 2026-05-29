@@ -5,6 +5,7 @@ import {
   useContext,
   useState,
   useCallback,
+  useEffect,
   useMemo,
   type ReactNode,
 } from "react";
@@ -25,7 +26,7 @@ interface LanguageContextValue {
 
 const LanguageContext = createContext<LanguageContextValue | null>(null);
 
-function getInitialLocale(): Locale {
+function getCookieLocale(): Locale {
   if (typeof document === "undefined") return DEFAULT_LOCALE;
   const match = document.cookie
     .split("; ")
@@ -35,7 +36,16 @@ function getInitialLocale(): Locale {
 }
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>(getInitialLocale);
+  // Always start with DEFAULT_LOCALE to match server render (prevents hydration mismatch)
+  const [locale, setLocaleState] = useState<Locale>(DEFAULT_LOCALE);
+
+  // Sync with cookie on mount (client-only)
+  useEffect(() => {
+    const cookieLocale = getCookieLocale();
+    if (cookieLocale !== DEFAULT_LOCALE) {
+      setLocaleState(cookieLocale);
+    }
+  }, []);
 
   const setLocale = useCallback((newLocale: Locale) => {
     setLocaleState(newLocale);

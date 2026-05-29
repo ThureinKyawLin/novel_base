@@ -5,7 +5,7 @@ export type Locale = "en" | "mm";
 export type Dictionary = typeof en;
 
 export const LOCALE_COOKIE = "novelbase-locale";
-export const DEFAULT_LOCALE: Locale = "en";
+export const DEFAULT_LOCALE: Locale = "mm";
 export const LOCALES: Locale[] = ["en", "mm"];
 
 const dictionaries: Record<Locale, Dictionary> = { en, mm };

@@ -12,24 +12,20 @@
   font-display: swap;
 }
 
-/* Myanmar Unicode auto-detection: any Myanmar characters (U+1000-U+109F)
-   automatically render with a readable Myanmar system font, site-wide.
-   Uses system fonts for clean UI rendering (nav, buttons, labels). */
 @font-face {
-  font-family: 'Myanmar Auto';
-  src: local('Padauk'), local('Myanmar Text'), local('Noto Sans Myanmar'),
-       local('Myanmar MN'), local('Myanmar Sangam MN');
-  font-weight: 100 900;
+  font-family: 'Cherry Unicode';
+  src: url('/fonts/Cherry_Unicode.ttf') format('truetype');
+  font-weight: 400;
   font-style: normal;
   font-display: swap;
   unicode-range: U+1000-U+109F, U+AA60-U+AA7F, U+A9E0-U+A9FF;
 }
 
 @theme inline {
-  --font-mm: 'Burmese Handwriting', 'Padauk', 'Myanmar Text', sans-serif;
+  --font-mm: 'Cherry Unicode', 'Padauk', 'Myanmar Text', 'Noto Sans Myanmar', sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: 'Myanmar Auto', var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-sans: 'Cherry Unicode', 'Padauk', 'Myanmar Text', 'Noto Sans Myanmar', var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
   --font-heading: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
@@ -144,7 +140,7 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground text-[15px] sm:text-base;
+    @apply bg-background text-foreground text-base sm:text-[17px];
   }
   html {
     @apply font-sans;

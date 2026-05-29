@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { prisma } from "@/lib/prisma";
 import {
   Card,
   CardContent,
@@ -8,35 +8,45 @@ import {
 import { BookMarked, Tags, Users, ScrollText } from "lucide-react";
 
 export default async function AdminDashboard() {
-  const supabase = await createClient();
-
-  const [novels, genres, mods, recentLogs] = await Promise.all([
-    supabase.from("novels").select("*", { count: "exact", head: true }),
-    supabase.from("genres").select("*", { count: "exact", head: true }),
-    supabase.from("profiles").select("*", { count: "exact", head: true }),
-    supabase
-      .from("audit_logs")
-      .select("*, user_profile:profiles!audit_logs_user_id_fkey(display_name)")
-      .order("created_at", { ascending: false })
-      .limit(10),
+  const [novelsCount, genresCount, modsCount, recentLogsRaw] = await Promise.all([
+    prisma.novel.count(),
+    prisma.genre.count(),
+    prisma.profile.count(),
+    prisma.auditLog.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 10,
+      include: {
+        userProfile: { select: { displayName: true } },
+      },
+    }),
   ]);
+
+  const recentLogs = recentLogsRaw.map((log) => ({
+    id: log.id,
+    action: log.action,
+    entity_type: log.entityType,
+    created_at: log.createdAt.toISOString(),
+    user_profile: log.userProfile
+      ? { display_name: log.userProfile.displayName }
+      : null,
+  }));
 
   const stats = [
     {
       title: "Total Novels",
-      value: novels.count ?? 0,
+      value: novelsCount,
       icon: BookMarked,
       color: "text-blue-500",
     },
     {
       title: "Genres",
-      value: genres.count ?? 0,
+      value: genresCount,
       icon: Tags,
       color: "text-green-500",
     },
     {
       title: "Team Members",
-      value: mods.count ?? 0,
+      value: modsCount,
       icon: Users,
       color: "text-purple-500",
     },
@@ -70,9 +80,9 @@ export default async function AdminDashboard() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {recentLogs.data && recentLogs.data.length > 0 ? (
+      {recentLogs.length > 0 ? (
             <div className="space-y-3">
-              {recentLogs.data.map((log) => (
+              {recentLogs.map((log) => (
                 <div
                   key={log.id}
                   className="flex items-center justify-between rounded-md border p-3 text-sm"

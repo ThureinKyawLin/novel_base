@@ -125,6 +125,7 @@ model Novel {
   titleEn           String             @map("title_en")
   titleMm           String?            @map("title_mm")
   authorPenName     String?            @map("author_pen_name")
+  translatorName    String?            @map("translator_name")
   synopsis          String?
   coverImageUrl     String?            @map("cover_image_url")
   fbPageUrl         String?            @map("fb_page_url")
@@ -236,6 +237,7 @@ model Submission {
   titleEn          String           @map("title_en")
   titleMm          String?          @map("title_mm")
   authorPenName    String?          @map("author_pen_name")
+  translatorName   String?          @map("translator_name")
   synopsis         String?
   coverImageUrl    String?          @map("cover_image_url")
   fbPageUrl        String?          @map("fb_page_url")

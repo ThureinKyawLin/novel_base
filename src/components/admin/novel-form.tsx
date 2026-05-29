@@ -18,7 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, ArrowLeft, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { createNovel, updateNovel } from "@/app/admin/novels/actions";
-import { ImageUpload } from "@/components/admin/image-upload";
+import { CoverUpload } from "@/components/cover-upload";
 import type { Novel, Genre, NovelFormData } from "@/lib/types";
 import Link from "next/link";
 
@@ -39,6 +39,7 @@ export function NovelForm({ novel, genres, initialGenreIds = [], initialReadingL
     title_en: novel?.title_en ?? "",
     title_mm: novel?.title_mm ?? "",
     author_pen_name: novel?.author_pen_name ?? "",
+    translator_name: novel?.translator_name ?? "",
     synopsis: novel?.synopsis ?? "",
     cover_image_url: novel?.cover_image_url ?? "",
     fb_page_url: novel?.fb_page_url ?? "",
@@ -78,6 +79,7 @@ export function NovelForm({ novel, genres, initialGenreIds = [], initialReadingL
       ...form,
       title_mm: form.title_mm || undefined,
       author_pen_name: form.author_pen_name || undefined,
+      translator_name: form.translator_name || undefined,
       synopsis: form.synopsis || undefined,
       cover_image_url: form.cover_image_url || undefined,
       fb_page_url: form.fb_page_url || undefined,
@@ -122,8 +124,9 @@ export function NovelForm({ novel, genres, initialGenreIds = [], initialReadingL
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Main info */}
-        <Card className="lg:col-span-2">
+        {/* Left column: Novel info + Translation */}
+        <div className="lg:col-span-2 space-y-6">
+        <Card>
           <CardHeader>
             <CardTitle>Novel Information</CardTitle>
           </CardHeader>
@@ -150,13 +153,26 @@ export function NovelForm({ novel, genres, initialGenreIds = [], initialReadingL
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="author_pen_name">Author / Pen Name</Label>
+                <Label htmlFor="author_pen_name">Original Author / Pen Name</Label>
                 <Input
                   id="author_pen_name"
                   value={form.author_pen_name}
                   onChange={(e) => updateField("author_pen_name", e.target.value)}
+                  placeholder="မူရင်းစာရေးဆရာ"
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="translator_name">Translator</Label>
+                <Input
+                  id="translator_name"
+                  value={form.translator_name}
+                  onChange={(e) => updateField("translator_name", e.target.value)}
+                  placeholder="ဘာသာပြန်သူ"
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="novel_status">Status</Label>
                 <Select
@@ -209,7 +225,7 @@ export function NovelForm({ novel, genres, initialGenreIds = [], initialReadingL
               </div>
             </div>
 
-            <ImageUpload
+            <CoverUpload
               value={form.cover_image_url}
               onChange={(url) => updateField("cover_image_url", url)}
             />
@@ -217,7 +233,7 @@ export function NovelForm({ novel, genres, initialGenreIds = [], initialReadingL
         </Card>
 
         {/* Translation info */}
-        <Card className="lg:col-span-2">
+        <Card>
           <CardHeader>
             <CardTitle>Translation</CardTitle>
           </CardHeader>
@@ -275,8 +291,9 @@ export function NovelForm({ novel, genres, initialGenreIds = [], initialReadingL
             </div>
           </CardContent>
         </Card>
+        </div>
 
-        {/* Social links + genres */}
+        {/* Right column: Social links + Reading links + Genres */}
         <div className="space-y-6">
           <Card>
             <CardHeader>

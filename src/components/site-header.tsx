@@ -10,11 +10,9 @@ import { useLanguage } from "@/components/language-context";
 interface SiteHeaderProps {
   /** Highlight the active nav item */
   active?: "home" | "browse" | "submit" | "api";
-  /** Show the Admin button (only on home page) */
-  showAdmin?: boolean;
 }
 
-export function SiteHeader({ active, showAdmin }: SiteHeaderProps) {
+export function SiteHeader({ active }: SiteHeaderProps) {
   const { t } = useLanguage();
 
   return (
@@ -56,15 +54,6 @@ export function SiteHeader({ active, showAdmin }: SiteHeaderProps) {
           </Link>
           <LanguageSwitch />
           <ThemeToggle />
-          {showAdmin && (
-            <Button
-              variant="outline"
-              size="sm"
-              render={<Link href="/login" />}
-            >
-              {t.common.admin}
-            </Button>
-          )}
         </nav>
       </div>
     </header>

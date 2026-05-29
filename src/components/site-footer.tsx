@@ -26,6 +26,17 @@ export function SiteFooter() {
               {t.common.api}
             </Link>
           </div>
+          <p className="text-center">
+            Powered by{" "}
+            <a
+              href="https://labmyanmar.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-foreground hover:underline"
+            >
+              LAB Book Store
+            </a>
+          </p>
           <p>{t.common.copyright} &copy; {new Date().getFullYear()}</p>
         </div>
       </div>

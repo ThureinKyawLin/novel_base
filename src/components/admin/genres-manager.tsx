@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { createGenre, updateGenre, deleteGenre } from "@/app/admin/genres/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -52,36 +52,24 @@ export function GenresManager({ initialGenres }: { initialGenres: Genre[] }) {
   async function handleSave() {
     if (!name.trim()) return;
     setLoading(true);
-    const supabase = createClient();
 
     if (editing) {
-      const { data, error } = await supabase
-        .from("genres")
-        .update({ name: name.trim(), name_mm: nameMm.trim() || null })
-        .eq("id", editing.id)
-        .select()
-        .single();
-
-      if (error) {
-        toast.error(error.message);
+      const result = await updateGenre(editing.id, { name: name.trim(), name_mm: nameMm.trim() || null });
+      if (result.error) {
+        toast.error(result.error);
         setLoading(false);
         return;
       }
-      setGenres((prev) => prev.map((g) => (g.id === editing.id ? data : g)));
+      setGenres((prev) => prev.map((g) => (g.id === editing.id ? result.data! : g)));
       toast.success("Genre updated");
     } else {
-      const { data, error } = await supabase
-        .from("genres")
-        .insert({ name: name.trim(), name_mm: nameMm.trim() || null })
-        .select()
-        .single();
-
-      if (error) {
-        toast.error(error.message);
+      const result = await createGenre({ name: name.trim(), name_mm: nameMm.trim() || null });
+      if (result.error) {
+        toast.error(result.error);
         setLoading(false);
         return;
       }
-      setGenres((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+      setGenres((prev) => [...prev, result.data!].sort((a, b) => a.name.localeCompare(b.name)));
       toast.success("Genre added");
     }
 
@@ -92,10 +80,9 @@ export function GenresManager({ initialGenres }: { initialGenres: Genre[] }) {
 
   async function handleDelete(genre: Genre) {
     if (!confirm(`Delete "${genre.name}"?`)) return;
-    const supabase = createClient();
-    const { error } = await supabase.from("genres").delete().eq("id", genre.id);
-    if (error) {
-      toast.error(error.message);
+    const result = await deleteGenre(genre.id);
+    if (result.error) {
+      toast.error(result.error);
       return;
     }
     setGenres((prev) => prev.filter((g) => g.id !== genre.id));

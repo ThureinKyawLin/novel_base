@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import Script from "next/script";
 import { SiteHeader } from "@/components/site-header";
+import { getCachedNovelDetail } from "@/lib/cached-queries";
+import { SynopsisFontSizeControl, SynopsisText } from "@/components/synopsis-font-size";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
@@ -43,18 +45,26 @@ function timeAgo(date: string): string {
 }
 
 // Dynamic SEO metadata
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const supabase = await createClient();
-  const { data: novel } = await supabase
-    .from("novels")
-    .select("title_en, title_mm, author_pen_name, synopsis, novel_status")
-    .eq("id", id)
-    .single();
+  if (!UUID_RE.test(id)) return { title: "Novel Not Found" };
+  const novelMeta = await prisma.novel.findUnique({
+    where: { id },
+    select: { titleEn: true, titleMm: true, authorPenName: true, synopsis: true, novelStatus: true },
+  });
+  const novel = novelMeta ? {
+    title_en: novelMeta.titleEn,
+    title_mm: novelMeta.titleMm,
+    author_pen_name: novelMeta.authorPenName,
+    synopsis: novelMeta.synopsis,
+    novel_status: novelMeta.novelStatus,
+  } : null;
 
   if (!novel) return { title: "Novel Not Found" };
 
@@ -95,27 +105,46 @@ export default async function NovelDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const supabase = await createClient();
+  if (!UUID_RE.test(id)) notFound();
 
-  const [novelResult, linksResult] = await Promise.all([
-    supabase
-      .from("novels")
-      .select("*, novel_genres(genre_id, genres(id, name, name_mm))")
-      .eq("id", id)
-      .single(),
-    supabase
-      .from("reading_links")
-      .select("*")
-      .eq("novel_id", id)
-      .order("created_at"),
-  ]);
+  const cached = await getCachedNovelDetail(id);
+  if (!cached) notFound();
 
-  const novel = novelResult.data;
-  const readingLinks = linksResult.data ?? [];
+  const { novel: novelRaw, readingLinks: linksRaw } = cached;
 
-  if (!novel) {
-    notFound();
-  }
+  const readingLinks = linksRaw.map((l) => ({
+    id: l.id,
+    platform_name: l.platformName,
+    url: l.url,
+  }));
+
+  // Map to snake_case for template compatibility
+  const novel = {
+    id: novelRaw.id,
+    title_en: novelRaw.titleEn,
+    title_mm: novelRaw.titleMm,
+    author_pen_name: novelRaw.authorPenName,
+    translator_name: novelRaw.translatorName,
+    synopsis: novelRaw.synopsis,
+    cover_image_url: novelRaw.coverImageUrl,
+    fb_page_url: novelRaw.fbPageUrl,
+    tg_username: novelRaw.tgUsername,
+    tg_group_url: novelRaw.tgGroupUrl,
+    tg_channel_url: novelRaw.tgChannelUrl,
+    novel_status: novelRaw.novelStatus,
+    chapters_count: novelRaw.chaptersCount,
+    source_url: novelRaw.sourceUrl,
+    translation_status: novelRaw.translationStatus,
+    translation_note: novelRaw.translationNote,
+    translated_chapters: novelRaw.translatedChapters,
+    last_translated_at: novelRaw.lastTranslatedAt,
+    created_at: novelRaw.createdAt,
+    updated_at: novelRaw.updatedAt,
+    novel_genres: novelRaw.novelGenres.map((ng) => ({
+      genre_id: ng.genreId,
+      genres: { id: ng.genre.id, name: ng.genre.name, name_mm: ng.genre.nameMm },
+    })),
+  };
 
   const genres = (
     novel.novel_genres as {
@@ -186,9 +215,9 @@ export default async function NovelDetailPage({
                 </div>
               )}
               <div>
-                <h1 className="text-2xl sm:text-3xl font-bold">{novel.title_en}</h1>
+                <h1 className="text-2xl sm:text-3xl font-bold line-clamp-3">{novel.title_en}</h1>
                 {novel.title_mm && (
-                  <p className="text-lg sm:text-xl text-muted-foreground mt-1 font-mm">
+                  <p className="text-lg sm:text-xl text-muted-foreground mt-1 font-mm line-clamp-2">
                     {novel.title_mm}
                   </p>
                 )}
@@ -200,6 +229,13 @@ export default async function NovelDetailPage({
                 <div className="flex items-center gap-2 text-sm">
                   <Pen className="h-4 w-4 text-muted-foreground" />
                   <span className="font-medium">{novel.author_pen_name}</span>
+                </div>
+              )}
+              {novel.translator_name && (
+                <div className="flex items-center gap-2 text-sm">
+                  <Languages className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Translated by</span>
+                  <span className="font-medium">{novel.translator_name}</span>
                 </div>
               )}
               <span
@@ -253,7 +289,7 @@ export default async function NovelDetailPage({
                 <CardContent className="space-y-3">
                   <div className="flex flex-wrap items-center gap-3">
                     <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${tStatus.color}`}>
-                      {tStatus.label} · {tStatus.labelMm}
+                      {tStatus.label} / {tStatus.labelMm}
                     </span>
                     {novel.translated_chapters != null && (
                       <span className="text-sm text-muted-foreground">
@@ -283,12 +319,11 @@ export default async function NovelDetailPage({
                   <CardTitle className="text-lg flex items-center gap-2">
                     <BookMarked className="h-5 w-5" />
                     Synopsis
+                    <SynopsisFontSizeControl />
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                    {novel.synopsis}
-                  </p>
+                  <SynopsisText text={novel.synopsis} />
                 </CardContent>
               </Card>
             )}
