@@ -44,7 +44,6 @@ export function SubmitForm({ genres }: { genres: Genre[] }) {
     novel_status: "ongoing",
     chapters_count: undefined as number | undefined,
     submitter_name: "",
-    submitter_contact: "",
   });
 
   function updateField(field: string, value: string | number | undefined) {
@@ -86,7 +85,6 @@ export function SubmitForm({ genres }: { genres: Genre[] }) {
       tg_username: form.tg_username || undefined,
       tg_group_url: form.tg_group_url || undefined,
       tg_channel_url: form.tg_channel_url || undefined,
-      submitter_contact: form.submitter_contact || undefined,
       chapters_count: form.chapters_count ? Number(form.chapters_count) : undefined,
       novel_status: form.novel_status as "ongoing" | "completed" | "dropped",
       source_links: validLinks.length > 0 ? validLinks : undefined,
@@ -116,7 +114,7 @@ export function SubmitForm({ genres }: { genres: Genre[] }) {
           <p className="text-muted-foreground max-w-sm mx-auto">
             {t.submit.successDescription}
           </p>
-          <Button onClick={() => { setSubmitted(false); setForm({ title_en: "", title_mm: "", author_pen_name: "", translator_name: "", synopsis: "", cover_image_url: "", fb_page_url: "", tg_username: "", tg_group_url: "", tg_channel_url: "", novel_status: "ongoing", chapters_count: undefined, submitter_name: "", submitter_contact: "" }); setSelectedGenres([]); setSourceLinks([]); }}>
+          <Button onClick={() => { setSubmitted(false); setForm({ title_en: "", title_mm: "", author_pen_name: "", translator_name: "", synopsis: "", cover_image_url: "", fb_page_url: "", tg_username: "", tg_group_url: "", tg_channel_url: "", novel_status: "ongoing", chapters_count: undefined, submitter_name: "" }); setSelectedGenres([]); setSourceLinks([]); }}>
             {t.submit.submitAnother}
           </Button>
         </CardContent>
@@ -364,26 +362,16 @@ export function SubmitForm({ genres }: { genres: Genre[] }) {
         <CardHeader>
           <CardTitle className="text-lg">{t.submit.yourName.split(" ")[0] === "Your" ? "Your Information" : "သင့်အချက်အလက်"}</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="submitter_name">{t.submit.yourName} *</Label>
-              <Input
-                id="submitter_name"
-                value={form.submitter_name}
-                onChange={(e) => updateField("submitter_name", e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="submitter_contact">{t.submit.yourContact}</Label>
-              <Input
-                id="submitter_contact"
-                value={form.submitter_contact}
-                onChange={(e) => updateField("submitter_contact", e.target.value)}
-                placeholder="Email or Telegram"
-              />
-            </div>
+        <CardContent>
+          <div className="space-y-2">
+            <Label htmlFor="submitter_name">{t.submit.yourName} *</Label>
+            <Input
+              id="submitter_name"
+              value={form.submitter_name}
+              onChange={(e) => updateField("submitter_name", e.target.value)}
+              required
+              className="max-w-sm"
+            />
           </div>
         </CardContent>
       </Card>
