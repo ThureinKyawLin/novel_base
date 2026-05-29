@@ -7,7 +7,10 @@ export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
 export default async function OGImage() {
-  const logoData = await readFile(join(process.cwd(), "public/logo.png"));
+  const [logoData, mmFont] = await Promise.all([
+    readFile(join(process.cwd(), "public/logo.png")),
+    readFile(join(process.cwd(), "public/fonts/Cherry_Unicode.ttf")),
+  ]);
   const logoBase64 = `data:image/png;base64,${logoData.toString("base64")}`;
 
   return new ImageResponse(
@@ -75,6 +78,7 @@ export default async function OGImage() {
             fontSize: "28px",
             color: "#c7d2fe",
             marginBottom: "8px",
+            fontFamily: "Myanmar",
           }}
         >
           မြန်မာ ဝတ္ထု စာအုပ် အချက်အလက်များ
@@ -108,6 +112,7 @@ export default async function OGImage() {
                 background: "rgba(99,102,241,0.1)",
                 color: "#a5b4fc",
                 fontSize: "18px",
+                fontFamily: "Myanmar",
               }}
             >
               {tag}
@@ -129,6 +134,16 @@ export default async function OGImage() {
         </div>
       </div>
     ),
-    { ...size }
+    {
+      ...size,
+      fonts: [
+        {
+          name: "Myanmar",
+          data: mmFont,
+          style: "normal" as const,
+          weight: 400 as const,
+        },
+      ],
+    }
   );
 }
